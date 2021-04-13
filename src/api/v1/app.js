@@ -6,6 +6,7 @@ const globalErrorHandler = require('./middlewares/globalErrorHandler')
 
 // import routes
 const bookRouter = require('./routes/books')
+const userRouter = require('./routes/users')
 // express app
 const app = express()
 
@@ -21,6 +22,7 @@ app.use(xss())
 app.use(express.json())
 // Routes
 app.use('/api/v1/books', bookRouter)
+app.use('/api/v1/users', userRouter)
 // unhandled routes
 app.all('*', (req, res, next) => globalErrorHandler)
 
