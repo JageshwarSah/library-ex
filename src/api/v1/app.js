@@ -4,6 +4,8 @@ const helmet = require('helmet')
 const xss = require('xss-clean')
 const globalErrorHandler = require('./middlewares/globalErrorHandler')
 
+// import routes
+const bookRouter = require('./routes/books')
 // express app
 const app = express()
 
@@ -15,11 +17,10 @@ app.use(morgan('dev'))
 app.use(helmet())
 app.use(xss())
 
+// body parser
+app.use(express.json())
 // Routes
-app.all('/', (req, res, next) => {
-	const name = 'DFOD'
-	next(name)
-})
+app.use('/api/v1/books', bookRouter)
 // unhandled routes
 app.all('*', (req, res, next) => globalErrorHandler)
 
