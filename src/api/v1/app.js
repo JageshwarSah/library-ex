@@ -1,0 +1,30 @@
+const express = require('express')
+const morgan = require('morgan')
+const helmet = require('helmet')
+const xss = require('xss-clean')
+const globalErrorHandler = require('./middlewares/globalErrorHandler')
+
+// express app
+const app = express()
+
+// Global Middlewares
+// -- logger
+app.use(morgan('dev'))
+
+// --  set http security headers
+app.use(helmet())
+app.use(xss())
+
+// Routes
+app.all('/', (req, res, next) => {
+	const name = 'DFOD'
+	next(name)
+})
+// unhandled routes
+app.all('*', (req, res, next) => globalErrorHandler)
+
+// -- global error handler
+app.use(globalErrorHandler)
+
+// export express app
+module.exports = app
