@@ -22,14 +22,16 @@ exports.signup = async (req, res, next) => {
 }
 
 exports.login = async (req, res, next) => {
+  const { email, password } = { ...req.body }
   try {
     // 1) Verify email and password
-    const { email, password } = { ...req.body }
     if (!email || !password)
       throw new ErrorHandler('Please provide email and password', 400)
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ email }).select('+password')
 
-    if (!user) throw new ErrorHandler('incorrect email or password', 400)
+    console.log(user)
+    if (!user || !(await user.verifyPassword(password, user.password)))
+      throw new ErrorHandler('Incorrect email or password!', 400)
 
     // 2) Create and JWT
     token.sendNew(res, 200, user.id)
@@ -61,7 +63,10 @@ exports.protect = async (req, res, next) => {
 
     // 4) Check if user has changed password after access token was issued
     if (currentUser.passwordChangedAfter(decoded.iat))
-      throw new ErrorHandler('User has recently changed his password', 400)
+      throw new ErrorHandler(
+        'User has recently changed his password, please log in again',
+        400
+      )
 
     // 5) Grant Access
     req.user = currentUser
@@ -84,11 +89,15 @@ exports.updatePassword = async (req, res, next) => {
   try {
     const currentUser = await User.findById(req.user.id).select('+password')
     // Verify Current Password
-    if (!currentUser.verifyPassword(currentPassword, currentUser.password))
+    if (
+      !(await currentUser.verifyPassword(currentPassword, currentUser.password))
+    )
       next(new ErrorHandler('Invalid current password!', 400))
 
+    // Update and save
     currentUser.password = newPassword
-    await currentUser.save({ validateBeforeSave: false })
+    currentUser.passwordConfirm = newPasswordConfirm
+    await currentUser.save()
 
     token.sendNew(res, 200, currentUser.id)
   } catch (err) {
