@@ -1,4 +1,6 @@
+const { promisify } = require('util')
 const User = require('../models/user')
+
 const jwt = require('jsonwebtoken')
 
 const token = require('../helpers/accessToken')
@@ -22,16 +24,58 @@ exports.signup = async (req, res, next) => {
 }
 
 exports.login = async (req, res, next) => {
+  const { email, password } = { ...req.body }
   try {
     // 1) Verify email and password
-    const { email, password } = { ...req.body }
     if (!email || !password)
       throw new ErrorHandler('Please provide email and password', 400)
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ email }).select('+password')
 
-    if (!user) throw new ErrorHandler('incorrect email or password', 400)
+    console.log(user)
+    if (!user || !(await user.verifyPassword(password, user.password)))
+      throw new ErrorHandler('Incorrect email or password!', 400)
 
     // 2) Create and JWT
+    token.sendNew(res, 200, user.id)
+  } catch (err) {
+    next(err)
+  }
+}
+
+//TODO Implement forgot password feature
+exports.fotgotPassword = async (req, res, next) => {
+  const email = req.body.email
+  try {
+    const user = await User.findOne({ email })
+    if (!user) throw new ErrorHandler('Invalid email', 400)
+    user.passwordResetToken = token.create(user.id)
+    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000) // 10 Minutes from now
+    await user.save({ validateBeforeSave: false })
+    res.status(200).json({
+      resetToken: user.passwordResetToken,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+exports.resetPassword = async (req, res, next) => {
+  const { resetToken, password, passwordConfirm } = { ...req.body }
+  try {
+    const decoded = await promisify(jwt.verify)(
+      resetToken,
+      process.env.JWT_PRIVATE_KEY
+    )
+    console.log(decoded)
+    // Check if user is present with decoded id
+    const user = await User.findById(decoded.id)
+    if (!user || user.isResetTokenExpired())
+      throw new ErrorHandler('Invalid or expired reset token, reqeust new')
+
+    user.password = password
+    user.passwordConfirm = passwordConfirm
+
+    await user.save()
     token.sendNew(res, 200, user.id)
   } catch (err) {
     next(err)
@@ -53,15 +97,18 @@ exports.protect = async (req, res, next) => {
       throw new ErrorHandler('You are not logged in, please login', 403)
 
     // 2) Verify and decode payload
-    const decoded = jwt.verify(token, process.env.JWT_PRIVATE_KEY)
-    // 3) Check if use is present with decoded id
+    const decoded = promisify(jwt.verify)(token, process.env.JWT_PRIVATE_KEY)
+    // 3) Check if user is present with decoded id
     const currentUser = await User.findById(decoded.id)
     if (!currentUser)
       throw new ErrorHandler('User no longer exist in database', 404)
 
     // 4) Check if user has changed password after access token was issued
     if (currentUser.passwordChangedAfter(decoded.iat))
-      throw new ErrorHandler('User has recently changed his password', 400)
+      throw new ErrorHandler(
+        'User has recently changed his password, please log in again',
+        400
+      )
 
     // 5) Grant Access
     req.user = currentUser
@@ -80,9 +127,21 @@ exports.restrictTo = (...roles) => (req, res, next) => {
 }
 
 exports.updatePassword = async (req, res, next) => {
+  const { currentPassword, newPassword, newPasswordConfirm } = { ...req.body }
   try {
-    const currentUser = await User.findById(req.user.id)
+    const currentUser = await User.findById(req.user.id).select('+password')
     // Verify Current Password
+    if (
+      !(await currentUser.verifyPassword(currentPassword, currentUser.password))
+    )
+      next(new ErrorHandler('Invalid current password!', 400))
+
+    // Update and save
+    currentUser.password = newPassword
+    currentUser.passwordConfirm = newPasswordConfirm
+    await currentUser.save()
+
+    token.sendNew(res, 200, currentUser.id)
   } catch (err) {
     next(err)
   }

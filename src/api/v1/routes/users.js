@@ -5,11 +5,13 @@ const authController = require('../services/authorization')
 // Puplic routes
 router.route('/signup').post(authController.signup)
 router.route('/login').post(authController.login)
+router.route('/forgot-password').post(authController.fotgotPassword)
+router.route('/reset-password').post(authController.resetPassword)
 
 // Protected Routes
 router.use(authController.protect)
 
-router.route('/update-password', authController.updatePassword)
+router.route('/update-password').post(authController.updatePassword)
 
 router
   .route('/')
