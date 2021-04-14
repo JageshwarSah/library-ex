@@ -56,11 +56,11 @@ userSchema.pre('save', async function (next) {
   // TODO Before saving any user password changes
   // 1) Hash the password
   // 2) Set passwordChangedAt timestamp
-  if (!this.isModified('password') || !this.isNew) return next()
-
-  this.password = await bcrypt.hash(this.password, 12)
-  this.passwordConfirm = undefined
-  this.passwordChangedAt = Date.now() - 1000
+  if (this.isModified('password') || this.isNew) {
+    this.password = await bcrypt.hash(this.password, 12)
+    this.passwordConfirm = undefined
+    this.passwordChangedAt = Date.now() - 1000
+  }
 
   next()
 })
