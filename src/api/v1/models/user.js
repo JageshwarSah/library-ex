@@ -1,3 +1,4 @@
+const { promisify } = require('util')
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
 const { token } = require('morgan')
@@ -75,6 +76,13 @@ userSchema.methods.passwordChangedAfter = function (tokenTimestamp) {
     10
   )
   return tokenTimestamp < passswordTimestamp
+}
+
+userSchema.methods.verifyPassword = async function (
+  candidatePassword,
+  userPassword
+) {
+  return await bcrypt.compare(candidatePassword, userPassword)
 }
 
 module.exports = mongoose.model('User', userSchema)
