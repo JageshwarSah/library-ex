@@ -1,4 +1,6 @@
+const { promisify } = require('util')
 const User = require('../models/user')
+
 const jwt = require('jsonwebtoken')
 
 const token = require('../helpers/accessToken')
@@ -40,6 +42,46 @@ exports.login = async (req, res, next) => {
   }
 }
 
+//TODO Implement forgot password feature
+exports.fotgotPassword = async (req, res, next) => {
+  const email = req.body.email
+  try {
+    const user = await User.findOne({ email })
+    if (!user) throw new ErrorHandler('Invalid email', 400)
+    user.passwordResetToken = token.create(user.id)
+    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000) // 10 Minutes from now
+    await user.save({ validateBeforeSave: false })
+    res.status(200).json({
+      resetToken: user.passwordResetToken,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+exports.resetPassword = async (req, res, next) => {
+  const { resetToken, password, passwordConfirm } = { ...req.body }
+  try {
+    const decoded = await promisify(jwt.verify)(
+      resetToken,
+      process.env.JWT_PRIVATE_KEY
+    )
+    console.log(decoded)
+    // Check if user is present with decoded id
+    const user = await User.findById(decoded.id)
+    if (!user || user.isResetTokenExpired())
+      throw new ErrorHandler('Invalid or expired reset token, reqeust new')
+
+    user.password = password
+    user.passwordConfirm = passwordConfirm
+
+    await user.save()
+    token.sendNew(res, 200, user.id)
+  } catch (err) {
+    next(err)
+  }
+}
+
 exports.protect = async (req, res, next) => {
   try {
     // 1) Get access token if present
@@ -55,8 +97,8 @@ exports.protect = async (req, res, next) => {
       throw new ErrorHandler('You are not logged in, please login', 403)
 
     // 2) Verify and decode payload
-    const decoded = jwt.verify(token, process.env.JWT_PRIVATE_KEY)
-    // 3) Check if use is present with decoded id
+    const decoded = promisify(jwt.verify)(token, process.env.JWT_PRIVATE_KEY)
+    // 3) Check if user is present with decoded id
     const currentUser = await User.findById(decoded.id)
     if (!currentUser)
       throw new ErrorHandler('User no longer exist in database', 404)
