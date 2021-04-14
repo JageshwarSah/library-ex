@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const bcrypt = require('bcrypt')
+const { token } = require('morgan')
 
 const userSchema = new mongoose.Schema(
   {
@@ -42,6 +43,7 @@ const userSchema = new mongoose.Schema(
       default: true,
       select: false,
     },
+    passwordChangedAt: Date,
   },
   {
     toObject: { virtuals: true },
@@ -50,14 +52,29 @@ const userSchema = new mongoose.Schema(
 )
 
 userSchema.pre('save', async function (next) {
+  // TODO Before saving any user password changes
+  // 1) Hash the password
+  // 2) Set passwordChangedAt timestamp
+  if (!this.isModified('password') || !this.isNew) return next()
+
   this.password = await bcrypt.hash(this.password, 12)
   this.passwordConfirm = undefined
+  this.passwordChangedAt = Date.now() - 1000
+
   next()
 })
 
-userSchema.pre(/^find/, async function (next) {
-  this.select('-__v')
-  next()
-})
+// userSchema.pre(/^find/, async function (next) {
+//   // this.select('-__v')
+//   next()
+// })
+
+userSchema.methods.passwordChangedAfter = function (tokenTimestamp) {
+  const passswordTimestamp = parseInt(
+    this.passwordChangedAt.getTime() / 1000,
+    10
+  )
+  return tokenTimestamp < passswordTimestamp
+}
 
 module.exports = mongoose.model('User', userSchema)
