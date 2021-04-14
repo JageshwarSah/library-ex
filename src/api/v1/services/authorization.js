@@ -80,9 +80,17 @@ exports.restrictTo = (...roles) => (req, res, next) => {
 }
 
 exports.updatePassword = async (req, res, next) => {
+  const { currentPassword, newPassword, newPasswordConfirm } = { ...req.body }
   try {
-    const currentUser = await User.findById(req.user.id)
+    const currentUser = await User.findById(req.user.id).select('+password')
     // Verify Current Password
+    if (!currentUser.verifyPassword(currentPassword, currentUser.password))
+      next(new ErrorHandler('Invalid current password!', 400))
+
+    currentUser.password = newPassword
+    await currentUser.save({ validateBeforeSave: false })
+
+    token.sendNew(res, 200, currentUser.id)
   } catch (err) {
     next(err)
   }
