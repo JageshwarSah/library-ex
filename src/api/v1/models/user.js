@@ -45,6 +45,8 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
     passwordChangedAt: Date,
+    passwordResetToken: String,
+    passwordResetExpires: Date,
   },
   {
     toObject: { virtuals: true },
@@ -85,4 +87,7 @@ userSchema.methods.verifyPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword)
 }
 
+userSchema.methods.isResetTokenExpired = function () {
+  return Date.now() > this.passwordResetExpires.getTime()
+}
 module.exports = mongoose.model('User', userSchema)
