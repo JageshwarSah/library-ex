@@ -9,7 +9,7 @@ router.route('/login').post(authController.login)
 // Protected Routes
 router.use(authController.protect)
 
-router.route('/update-password', authController.updatePassword)
+router.route('/update-password').post(authController.updatePassword)
 
 router
   .route('/')
